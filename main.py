@@ -21,7 +21,8 @@ import time
 
     住所：#address > tbody
 
-    閉店日：body > div.wrapper > div.detail.post-206464.post.type-post.status-publish.format-standard.has-post-thumbnail.hentry.category-lunch.category-niigata.category-close.category-kantou_koushinetsu.category-restaurant > div > div > div.col-md-8.mainarea > div.detail_text > div.post_body > h3
+    閉店日：div.col-md-8.mainarea > div.detail_text > div.post_body > h3
+           body > div.wrapper > div.detail.post-206459.post.type-post.status-publish.format-standard.has-post-thumbnail.hentry.category-lunch.category-kanagawa.category-close.category-kantou_koushinetsu.category-restaurant > div > div > div.col-md-8.mainarea > div.detail_text > div.post_body > h3 
         形式：新潟県長岡市 2019年9月30日（月）閉店
 
 '''
@@ -34,7 +35,7 @@ def WriteSS(row, sendList):
     doc = gc.open('close list')
     wks = doc.worksheet('シート1')
 
-    cells = wks.range(row, 1, row + len(sendList) - 1, 14)
+    cells = wks.range(row, 1, row + 101, 18)
     i = 0
     for r in sendList:
         for c in r:
@@ -44,9 +45,9 @@ def WriteSS(row, sendList):
 
 
 
-update_sel = 'body > div.wrapper > div.detail.post-206464.post.type-post.status-publish.format-standard.has-post-thumbnail.hentry.category-lunch.category-niigata.category-close.category-kantou_koushinetsu.category-restaurant > div > div > div.col-md-8.mainarea > div.detail_text > div.post_meta > span.post_time > time'
-date_sel = 'body > div.wrapper > div.detail.post-206464.post.type-post.status-publish.format-standard.has-post-thumbnail.hentry.category-lunch.category-niigata.category-close.category-kantou_koushinetsu.category-restaurant > div > div > div.col-md-8.mainarea > div.detail_text > div.post_body > h3'
-attribute_sel = 'body > div.wrapper > div.detail.post-206464.post.type-post.status-publish.format-standard.has-post-thumbnail.hentry.category-lunch.category-niigata.category-close.category-kantou_koushinetsu.category-restaurant > div > div > div.col-md-8.mainarea > div.detail_text > div.post_meta > span.post_cat'
+update_sel = 'div.col-md-8.mainarea > div.detail_text > div.post_meta > span.post_time > time'
+date_sel = 'div.col-md-8.mainarea > div.detail_text > div.post_body > h3'
+attribute_sel = 'div.col-md-8.mainarea > div.detail_text > div.post_meta > span.post_cat'
 
 # get url list
 urlList = []
@@ -59,12 +60,16 @@ with(open("/Users/reimi/Documents/10291320/dip/data/close_list.csv", encoding="s
 #urlList = ['https://kaiten-heiten.com/hottomotto-nagaokaooshima/']
 # qrole
 sendList = []
-itera = 0
+count = 0
+num = 0
 current_row = 2
-temp = 2
+temp = 42592
 # sqrape
 for url in urlList:
-    print(url[0])
+    print(count, num, url[0])
+    if(num<42590):
+        num += 1
+        continue
     http = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
     req = http.request('GET', url[0])
     if(req.status == 200):
@@ -74,20 +79,22 @@ for url in urlList:
             update = soup.select_one(update_sel).get_text()
             update_el = re.sub(r'/−|‐|－|₋|_|̄̄̄|⁻|‾|ー|-|‑|–|—|―|ｰ/', '-', update).split('-')
             update = '/'.join(update_el)
-            print(update)
+            #print(update)
         except Exception as e:
             print('update error:', type(e))
+            errorList.append(url[0])
 
         # get date
         try:
             date = soup.select_one(date_sel).get_text()
             date_groups = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', date)
-            if(date_groups == None):
-                date_groups = re.search(r'(\d{4})年(\d{1,2})月(\s+)閉店', date)
+            if(not date_groups):
+                date_groups = re.search(r'(\d{4})年(\d{1,2})月(.+)閉店', date)
             date = '/'.join(date_groups.groups())
-            print(date)
+            #print(date)
         except Exception as e:
             print('date error:', type(e))
+            errorList.append(url[0])
 
         # get address and postal code
         try:
@@ -95,7 +102,7 @@ for url in urlList:
             for ad in ad_tr:
                 if(re.search(r'住所', ad.get_text())!= None):
                     address = ad.td.find_next_sibling().get_text()
-                    print(address)
+                    #print(address)
                     break;
                 else:
                     address = None
@@ -103,28 +110,39 @@ for url in urlList:
                 ValueError
             
             address = re.sub(r'/−|‐|－|₋|_|̄̄̄|⁻|‾|ー|-|‑|–|—|―|ｰ/', '-', address)
-            address = re.sub(r'〒', '', address)
-            address = re.sub(' ', '', address)
+            address = address.replace('〒', '')
+            address = address.replace(' ', '')
             pc_match = re.search(r'\d\d\d-\d\d\d\d',address)
             if(pc_match):
                 postalcode = pc_match.group()
-                address = address.replace(postalcode, '')
+                _address = address.replace(postalcode, '')
+                if(re.search(r'\d\d\d-\d\d\d\d', _address)):
+                    address = address
+                else:
+                    address = _address
             else:
-                postalcode = '記載なし'
+                pc_match = re.search(r'(\d{3})(\d{4})', address)
+                if(pc_match):
+                    postalcode = '-'.join(pc_match.groups())
+                    address = address.replace(postalcode, '', address)
+                else:
+                    postalcode = '記載なし'
             
-            print(postalcode, address)
+            #print(postalcode, address)
         except Exception as e:
             postalcode = None
             print("address error:", type(e))
+            errorList.append(url[0])
 
         # get attribute
         try:
             attribute = [att.get_text() for att in soup.findAll('a', attrs = { 'rel': 'category tag' })]
-            if(len(attribute) < 6):
-                attribute.extend(['' for i in range(6 - len(attribute))])
-            print(attribute)
+            if(len(attribute) < 10):
+                attribute.extend(['' for i in range(10 - len(attribute))])
+            #print(attribute)
         except Exception:
             print('attribute error:', type(e))
+            errorList.append(url[0])
 
         # get name
         try:
@@ -134,27 +152,31 @@ for url in urlList:
             print(title)
         except Exception as e:
             print('title error:', type(e))
+            errorList.append(url[0])
+            
 
         # create list
         try:
             sendList.append([])
-            sendList[itera].extend([update, 'CLOSE', title, date, postalcode, address, '掲載なし', url[0]])
-            sendList[itera].extend(attribute)
-            print(sendList, '\n')
+            sendList[count].extend([update, 'CLOSE', title, date, postalcode, address, '掲載なし', url[0]])
+            sendList[count].extend(attribute)
+            count += 1
+            #print(sendList, '\n')
         except Exception as e:
-            print(itera, ":error:", type(e))
+            print(count, ":error:", type(e), e.args)
             errorList.append(url[0])
     else:
-        print(iter)
+        print(count)
         errorList.append(url[0])
 
-    itera += 1
-    if(itera == 500):
+    if(count == 30):
         WriteSS(temp, sendList)
-        del(sendList)
-        temp = itera + 2
+        sendList = []
+        temp = temp + count
+        count = 0
 
-    time.sleep(2)
+    time.sleep(1)
+    num += 1
 
 with(open('/Users/reimi/Documents/10291320/dip/data/errorList.csv', encoding='shift_jis')) as f:
     writer = csv.writer(f)
